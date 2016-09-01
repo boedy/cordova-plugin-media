@@ -915,7 +915,7 @@ BOOL keepAvAudioSessionAlwaysActive = NO;
 {
     /* https://issues.apache.org/jira/browse/CB-11513 */
     NSMutableArray* keysToRemove = [[NSMutableArray alloc] init];
-    
+
     for(id key in [self soundCache]) {
         CDVAudioFile* audioFile = [[self soundCache] objectForKey:key];
         if (audioFile != nil) {
@@ -927,9 +927,9 @@ BOOL keepAvAudioSessionAlwaysActive = NO;
             }
         }
     }
-    
+
     [[self soundCache] removeObjectsForKeys:keysToRemove];
-    
+
     // [[self soundCache] removeAllObjects];
     // [self setSoundCache:nil];
     [self setAvSession:nil];
@@ -1049,6 +1049,35 @@ BOOL keepAvAudioSessionAlwaysActive = NO;
               mediaId, (int)what, param];
         [self.commandDelegate evalJs:jsString];
     }
+}
+
+- (void) audioPlayerBeginInterruption: (AVAudioPlayer *) player
+ {
+    CDVAudioPlayer* aPlayer = (CDVAudioPlayer*)player;
+    NSString* mediaId = aPlayer.mediaId;
+    NSString* jsString = nil;
+
+    NSLog(@"audio interupted for '%@'", mediaId);
+
+    jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%d);", @"cordova.require('cordova-plugin-media.Media').onStatus", mediaId, MEDIA_STATE, MEDIA_PAUSED];
+    [self.commandDelegate evalJs:jsString];
+}
+
+- (void)audioPlayerEndInterruption:(AVAudioPlayer*)player withFlags:(NSUInteger)flags
+ {
+    CDVAudioPlayer* aPlayer = (CDVAudioPlayer*)player;
+    NSString* mediaId = aPlayer.mediaId;
+    NSString* jsString = nil;
+
+    NSLog(@"continue playback");
+
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1), dispatch_get_main_queue(), ^{
+        // Resume playing the audio.
+        [player play];
+    });
+
+    jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%d);", @"cordova.require('cordova-plugin-media.Media').onStatus", mediaId, MEDIA_STATE, MEDIA_RUNNING];
+    [self.commandDelegate evalJs:jsString];
 }
 
 -(BOOL) isPlayingOrRecording
