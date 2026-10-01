@@ -1046,17 +1046,22 @@ BOOL keepAvAudioSessionAlwaysActive = NO;
  {
     CDVAudioPlayer* aPlayer = (CDVAudioPlayer*)player;
     NSString* mediaId = aPlayer.mediaId;
-    NSString* jsString = nil;
 
     NSLog(@"continue playback");
 
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 1), dispatch_get_main_queue(), ^{
-        // Resume playing the audio.
-        [player play];
-    });
+        // Resume playing the audio. This fails while another app still holds a
+        // non-mixable session (e.g. CannotInterruptOthers when backgrounded), so
+        // only report MEDIA_RUNNING once playback has actually restarted.
+        NSError* error = nil;
+        BOOL resumed = [self hasAudioSession] && [self.avSession setActive:YES error:&error] && [player play];
+        if (!resumed) {
+            NSLog(@"Unable to resume audio for '%@': %@", mediaId, error);
+        }
 
-    jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%d);", @"cordova.require('cordova-plugin-media.Media').onStatus", mediaId, MEDIA_STATE, MEDIA_RUNNING];
-    [self.commandDelegate evalJs:jsString];
+        NSString* jsString = [NSString stringWithFormat:@"%@(\"%@\",%d,%d);", @"cordova.require('cordova-plugin-media.Media').onStatus", mediaId, MEDIA_STATE, resumed ? MEDIA_RUNNING : MEDIA_PAUSED];
+        [self.commandDelegate evalJs:jsString];
+    });
 }
 
 -(BOOL) isPlayingOrRecording
